@@ -1,0 +1,41 @@
+* {
+	font-family: "Fira Code", monospace;
+}
+
+:root {
+    --tab-min-height: 0!important;
+    --toolbarbutton-outer-padding: 2px!important;
+    --toolbarbutton-inner-padding: 4px!important;
+}
+
+.tab-label {
+    font-size: 1.2em;
+    font-weight: bold;
+}
+
+.tab-content {
+    margin-top: 1px;
+}
+
+#urlbar-input {
+    font-size: 1.2em!important;
+}
+
+.urlbarView {
+    font-size: 1.2em!important;
+}
+
+#back-button {
+    /*background: var(--lwt-toolbar-field-border-color, hsla(240,5%,5%,.25));*/
+    background: var(--toolbarbutton-hover-background);
+    border-radius: 0 9999px 9999px 0;
+}
+
+#back-button .toolbarbutton-icon {
+    margin-left: 2rem;
+    border-radius: 999px!important;
+}
+
+.browserStack {
+	background: black;
+}
