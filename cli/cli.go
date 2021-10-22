@@ -21,9 +21,7 @@ var CLI struct {
 
 	Ls LsCmd `cmd:"" help:"List profiles, profile instances and topics"`
 
-	Rm struct {
-		Instance string `arg:"" help:"The label of the instance to remove"`
-	} `cmd:"" help:"Delete an instance of a profile"`
+	Rm RmCmd `cmd:"" help:"Delete an instance of a profile"`
 }
 
 type CommandContext struct {

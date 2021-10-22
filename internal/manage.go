@@ -12,6 +12,8 @@ import (
 	uerror "t0ast.cc/tbml/util/error"
 )
 
+var ErrInstanceInUse error = errors.New("Instance in use")
+
 func ReadConfiguration(configFile string) (config Configuration, configDir string, err error) {
 	configBytes, err := os.ReadFile(configFile)
 	if err != nil {
@@ -51,17 +53,32 @@ func GetProfileInstances(config Configuration) ([]ProfileInstance, error) {
 		if !dirEntry.IsDir() {
 			return nil, uerror.StackTracef("Non-directory entry found in %s: %s", config.ProfilePath, dirEntry.Name())
 		}
-		instanceDataBytes, err := os.ReadFile(filepath.Join(config.ProfilePath, dirEntry.Name(), "profile-instance.json"))
+		instanceData, err := GetProfileInstance(config, dirEntry.Name())
 		if err != nil {
 			return nil, uerror.WithStackTrace(err)
-		}
-		var instanceData ProfileInstance
-		if err := json.Unmarshal(instanceDataBytes, &instanceData); err != nil {
-			return nil, uerror.StackTracef("Failed to unmarshal data for profile in %s: %w", dirEntry.Name(), err)
 		}
 		instances = append(instances, instanceData)
 	}
 	return instances, nil
+}
+
+func GetProfileInstance(config Configuration, instanceLabel string) (ProfileInstance, error) {
+	instanceDataBytes, err := os.ReadFile(filepath.Join(config.ProfilePath, instanceLabel, "profile-instance.json"))
+	if err != nil {
+		return ProfileInstance{}, uerror.WithStackTrace(err)
+	}
+	var instanceData ProfileInstance
+	if err := json.Unmarshal(instanceDataBytes, &instanceData); err != nil {
+		return ProfileInstance{}, uerror.StackTracef("Failed to unmarshal data for profile in %s: %w", instanceLabel, err)
+	}
+	return instanceData, nil
+}
+
+func DeleteInstance(config Configuration, instance ProfileInstance) error {
+	if instance.UsagePID != nil {
+		return fmt.Errorf("%w: %s is currently in use by PID %d (topic: %s)", ErrInstanceInUse, instance.InstanceLabel, *instance.UsagePID, *instance.UsageLabel)
+	}
+	return os.RemoveAll(getInstanceDir(config, instance))
 }
 
 func FindProfileByLabel(config Configuration, profileLabel string) *ProfileConfiguration {
