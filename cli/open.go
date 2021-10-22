@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 
+	"t0ast.cc/tbml/gui"
 	"t0ast.cc/tbml/internal"
 	uerror "t0ast.cc/tbml/util/error"
 )
@@ -21,15 +23,46 @@ func (cmd *OpenCmd) Run(ctx CommandContext) error {
 		return err
 	}
 
-	for _, instance := range instances {
-		fmt.Println(instance.ProfileLabel, instance.InstanceLabel, instance.UsageLabel, instance.UsagePID)
+	if cmd.Topic == "" {
+		topics := internal.GetTopics(instances)
+		topic, err := gui.Prompt(ctx.Context, topics, "Topic", false)
+		if err != nil {
+			return uerror.WithStackTrace(err)
+		}
+		if topic == nil {
+			return errors.New("No topic selected")
+		}
+		cmd.Topic = *topic
 	}
 
-	profile := ctx.Config[0]
-	bestInstance := internal.GetBestInstance(profile, instances)
+	isNewTopic := internal.IsNewTopic(instances, cmd.Topic)
+	if !isNewTopic {
+		return errors.New("Sorry, opening new tabs in an existing topic is not supported yet :<")
+	}
+
+	if cmd.Profile == "" && isNewTopic {
+		profileLabels := internal.GetProfileLabels(ctx.Config)
+		profile, err := gui.Prompt(ctx.Context, profileLabels, "Profile", true)
+		if err != nil {
+			return uerror.WithStackTrace(err)
+		}
+		if profile == nil {
+			return errors.New("No profile selected")
+		}
+		cmd.Profile = *profile
+	}
+
+	profile := internal.FindProfileByLabel(ctx.Config, cmd.Profile)
+	if profile == nil {
+		return fmt.Errorf("Profile %s does not exist", cmd.Profile)
+	}
+
+	bestInstance := internal.GetBestInstance(*profile, instances)
 	fmt.Println("Best:", bestInstance.InstanceLabel)
 
-	exitCode, err := internal.StartInstance(ctx.Context, profile, bestInstance, instances, ctx.ConfigDir, cmd.Debug)
+	bestInstance.UsageLabel = &cmd.Topic
+
+	exitCode, err := internal.StartInstance(ctx.Context, *profile, bestInstance, instances, ctx.ConfigDir, cmd.Debug)
 	if err != nil {
 		return uerror.WithExitCode(exitCode, uerror.WithStackTrace(err))
 	}

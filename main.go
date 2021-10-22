@@ -10,9 +10,11 @@ import (
 
 func main() {
 	err := cli.Run(os.Args)
-	if exitCode, hasExitCode := uerror.GetExitCode(err); hasExitCode {
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(int(exitCode))
+		if exitCode, hasExitCode := uerror.GetExitCode(err); hasExitCode {
+			os.Exit(int(exitCode))
+		}
+		os.Exit(1)
 	}
-	uerror.ErrPanic(err)
 }

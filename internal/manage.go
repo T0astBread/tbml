@@ -49,6 +49,43 @@ func GetProfileInstances() ([]ProfileInstance, error) {
 	return instances, nil
 }
 
+func FindProfileByLabel(config []ProfileConfiguration, profileLabel string) *ProfileConfiguration {
+	for _, profile := range config {
+		if profile.Label == profileLabel {
+			return &profile
+		}
+	}
+	return nil
+}
+
+func GetProfileLabels(config []ProfileConfiguration) []string {
+	labels := make([]string, 0, len(config))
+	for _, profile := range config {
+		labels = append(labels, profile.Label)
+	}
+	return labels
+}
+
+func GetTopics(instances []ProfileInstance) []string {
+	topics := []string{}
+	for _, instance := range instances {
+		if instance.UsageLabel != nil {
+			_topic := *instance.UsageLabel // get an unchanging reference to "instance.Topic"
+			topics = append(topics, _topic)
+		}
+	}
+	return topics
+}
+
+func IsNewTopic(instances []ProfileInstance, topic string) bool {
+	for _, instance := range instances {
+		if instance.UsageLabel != nil && topic == *instance.UsageLabel {
+			return false
+		}
+	}
+	return true
+}
+
 func GetBestInstance(profile ProfileConfiguration, instances []ProfileInstance) ProfileInstance {
 	instancesForProfile := 0
 	var oldestFreeInstance *ProfileInstance
