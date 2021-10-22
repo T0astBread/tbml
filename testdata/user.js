@@ -11,10 +11,3 @@ user_pref("privacy.prioritizeonions.enabled", true);
 user_pref("privacy.prioritizeonions.showNotification", false);
 user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);
 user_pref("xpinstall.signatures.required", false);
-
-// user_pref("extensions.torlauncher.control_port", 9161);
-// user_pref("network.proxy.socks_port", 9160);
-// user_pref("extensions.torlauncher.control_port", 9151);
-// user_pref("network.proxy.socks_port", 9150);
-user_pref("extensions.torlauncher.control_port", 9171);
-user_pref("network.proxy.socks_port", 9170);

@@ -1,0 +1,10 @@
+[
+	{
+		"ExtensionFiles": [
+			"extensions/miniFox@t0ast.cc.xpi"
+		],
+		"Label": "demo",
+		"UserChromeFile": "userChrome.css",
+		"UserJSFile": "user.js"
+	}
+]
