@@ -4,11 +4,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	nstring "t0ast.cc/network/tools/string"
+	ustring "t0ast.cc/tbml/util/string"
 )
 
 func TestTrimIndentation(t *testing.T) {
-	actual := nstring.TrimIndentation(`
+	actual := ustring.TrimIndentation(`
 		Hello world!
 		This is what a properly indented string looks like.
 
@@ -64,7 +64,7 @@ func TestTrimIndentationPanic(t *testing.T) {
 	for _, tC := range testCases {
 		t.Run(tC.desc, func(t *testing.T) {
 			assert.PanicsWithValue(t, tC.panicMessage, func() {
-				nstring.TrimIndentation(tC.input)
+				ustring.TrimIndentation(tC.input)
 			})
 		})
 	}

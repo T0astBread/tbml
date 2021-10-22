@@ -1,4 +1,4 @@
-package main
+package internal
 
 import (
 	"encoding/json"
@@ -11,12 +11,12 @@ import (
 	uerror "t0ast.cc/tbml/util/error"
 )
 
-func ReadConfiguration(configFile string) (config []ProfileConfiguration, err error) {
+func ReadConfiguration(configFile string) (config []ProfileConfiguration, configDir string, err error) {
 	configBytes, err := os.ReadFile(configFile)
 	if err != nil {
-		return nil, uerror.WithStackTrace(err)
+		return nil, "", uerror.WithStackTrace(err)
 	}
-	return config, json.Unmarshal(configBytes, &config)
+	return config, filepath.Dir(configFile), json.Unmarshal(configBytes, &config)
 }
 
 func GetProfileInstances() ([]ProfileInstance, error) {

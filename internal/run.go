@@ -1,4 +1,4 @@
-package main
+package internal
 
 import (
 	"context"
@@ -27,7 +27,7 @@ const relativeProfilePath = ".local/share/torbrowser/tbb/x86_64/tor-browser_en-U
 //go:embed torbrowser-launcher.profile
 var tblFirejailProfile []byte
 
-func StartInstance(ctx context.Context, profile ProfileConfiguration, instance ProfileInstance, allInstances []ProfileInstance, configDir string, args []string) (exitCode uint, err error) {
+func StartInstance(ctx context.Context, profile ProfileConfiguration, instance ProfileInstance, allInstances []ProfileInstance, configDir string, debugShell bool) (exitCode uint, err error) {
 	instanceDir, err := getInstanceDir(instance)
 	if err != nil {
 		return genericErrorExitCode, uerror.WithStackTrace(err)
@@ -53,7 +53,7 @@ func StartInstance(ctx context.Context, profile ProfileConfiguration, instance P
 	}
 	defer cleanUpBindMounts()
 
-	return runFirejail(ctx, instanceDir, args)
+	return runFirejail(ctx, instanceDir, debugShell)
 }
 
 func writeInstanceData(profile ProfileConfiguration, instance ProfileInstance) (cleanup func() error, err error) {
@@ -278,15 +278,14 @@ func bindMount(src string, dst string, commonPath string) (cleanup func() error,
 	}, nil
 }
 
-func runFirejail(ctx context.Context, instanceDir string, args []string) (uint, error) {
+func runFirejail(ctx context.Context, instanceDir string, debugShell bool) (uint, error) {
 	firejailArgs := []string{
 		"dbus-launch", "firejail", fmt.Sprintf("--private=%s", instanceDir),
 	}
-	if len(args) > 0 && args[0] == "--debug" {
+	if debugShell {
 		firejailArgs = append(firejailArgs, "--noprofile", "fish")
 	} else {
 		firejailArgs = append(firejailArgs, fmt.Sprint("--profile=", filepath.Join(instanceDir, tblFirejailProfileFileName)), "torbrowser-launcher")
-		firejailArgs = append(firejailArgs, args...)
 	}
 
 	firejailCmd := exec.CommandContext(ctx, firejailArgs[0], firejailArgs[1:]...)
