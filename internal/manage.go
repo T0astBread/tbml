@@ -7,24 +7,39 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	uerror "t0ast.cc/tbml/util/error"
 )
 
-func ReadConfiguration(configFile string) (config []ProfileConfiguration, configDir string, err error) {
+func ReadConfiguration(configFile string) (config Configuration, configDir string, err error) {
 	configBytes, err := os.ReadFile(configFile)
 	if err != nil {
-		return nil, "", uerror.WithStackTrace(err)
+		return Configuration{}, "", uerror.WithStackTrace(err)
 	}
-	return config, filepath.Dir(configFile), json.Unmarshal(configBytes, &config)
+	if err := json.Unmarshal(configBytes, &config); err != nil {
+		return Configuration{}, "", uerror.WithStackTrace(err)
+	}
+
+	if config.ProfilePath == "" {
+		cache, err := os.UserCacheDir()
+		if err != nil {
+			return Configuration{}, "", uerror.WithStackTrace(err)
+		}
+		config.ProfilePath = filepath.Join(cache, "tbml")
+	} else if strings.HasPrefix(config.ProfilePath, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return Configuration{}, "", uerror.StackTracef("Failed to expand home directory in profile path: %w", err)
+		}
+		config.ProfilePath = filepath.Join(home, config.ProfilePath[2:])
+	}
+
+	return config, filepath.Dir(configFile), nil
 }
 
-func GetProfileInstances() ([]ProfileInstance, error) {
-	cacheDir, err := getCacheDir()
-	if err != nil {
-		return nil, uerror.WithStackTrace(err)
-	}
-	dirEntries, err := os.ReadDir(cacheDir)
+func GetProfileInstances(config Configuration) ([]ProfileInstance, error) {
+	dirEntries, err := os.ReadDir(config.ProfilePath)
 	if errors.Is(err, fs.ErrNotExist) {
 		return []ProfileInstance{}, nil
 	}
@@ -34,9 +49,9 @@ func GetProfileInstances() ([]ProfileInstance, error) {
 	instances := []ProfileInstance{}
 	for _, dirEntry := range dirEntries {
 		if !dirEntry.IsDir() {
-			return nil, uerror.StackTracef("Non-directory entry found in %s: %s", cacheDir, dirEntry.Name())
+			return nil, uerror.StackTracef("Non-directory entry found in %s: %s", config.ProfilePath, dirEntry.Name())
 		}
-		instanceDataBytes, err := os.ReadFile(filepath.Join(cacheDir, dirEntry.Name(), "profile-instance.json"))
+		instanceDataBytes, err := os.ReadFile(filepath.Join(config.ProfilePath, dirEntry.Name(), "profile-instance.json"))
 		if err != nil {
 			return nil, uerror.WithStackTrace(err)
 		}
@@ -49,8 +64,8 @@ func GetProfileInstances() ([]ProfileInstance, error) {
 	return instances, nil
 }
 
-func FindProfileByLabel(config []ProfileConfiguration, profileLabel string) *ProfileConfiguration {
-	for _, profile := range config {
+func FindProfileByLabel(config Configuration, profileLabel string) *ProfileConfiguration {
+	for _, profile := range config.Profiles {
 		if profile.Label == profileLabel {
 			return &profile
 		}
@@ -58,9 +73,9 @@ func FindProfileByLabel(config []ProfileConfiguration, profileLabel string) *Pro
 	return nil
 }
 
-func GetProfileLabels(config []ProfileConfiguration) []string {
-	labels := make([]string, 0, len(config))
-	for _, profile := range config {
+func GetProfileLabels(config Configuration) []string {
+	labels := make([]string, 0, len(config.Profiles))
+	for _, profile := range config.Profiles {
 		labels = append(labels, profile.Label)
 	}
 	return labels

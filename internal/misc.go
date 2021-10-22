@@ -1,14 +1,16 @@
 package internal
 
 import (
-	"os"
 	"path/filepath"
 	"time"
-
-	uerror "t0ast.cc/tbml/util/error"
 )
 
 const genericErrorExitCode = 1
+
+type Configuration struct {
+	ProfilePath string
+	Profiles    []ProfileConfiguration
+}
 
 type ProfileConfiguration struct {
 	ExtensionFiles []string
@@ -26,18 +28,6 @@ type ProfileInstance struct {
 	UsagePID      *int
 }
 
-func getCacheDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", uerror.WithStackTrace(err)
-	}
-	return filepath.Join(home, ".cache", "tbml"), nil
-}
-
-func getInstanceDir(instance ProfileInstance) (string, error) {
-	cacheDir, err := getCacheDir()
-	if err != nil {
-		return "", uerror.WithStackTrace(err)
-	}
-	return filepath.Join(cacheDir, instance.InstanceLabel), nil
+func getInstanceDir(config Configuration, instance ProfileInstance) string {
+	return filepath.Join(config.ProfilePath, instance.InstanceLabel)
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"t0ast.cc/tbml/gui"
 	"t0ast.cc/tbml/internal"
@@ -18,7 +19,7 @@ type OpenCmd struct {
 }
 
 func (cmd *OpenCmd) Run(ctx CommandContext) error {
-	instances, err := internal.GetProfileInstances()
+	instances, err := internal.GetProfileInstances(ctx.Config)
 	if err != nil {
 		return err
 	}
@@ -29,7 +30,7 @@ func (cmd *OpenCmd) Run(ctx CommandContext) error {
 		if err != nil {
 			return uerror.WithStackTrace(err)
 		}
-		if topic == nil {
+		if topic == nil || len(strings.TrimSpace(*topic)) == 0 {
 			return errors.New("No topic selected")
 		}
 		cmd.Topic = *topic
@@ -46,7 +47,7 @@ func (cmd *OpenCmd) Run(ctx CommandContext) error {
 		if err != nil {
 			return uerror.WithStackTrace(err)
 		}
-		if profile == nil {
+		if profile == nil || len(strings.TrimSpace(*profile)) == 0 {
 			return errors.New("No profile selected")
 		}
 		cmd.Profile = *profile
@@ -62,7 +63,7 @@ func (cmd *OpenCmd) Run(ctx CommandContext) error {
 
 	bestInstance.UsageLabel = &cmd.Topic
 
-	exitCode, err := internal.StartInstance(ctx.Context, *profile, bestInstance, instances, ctx.ConfigDir, cmd.Debug)
+	exitCode, err := internal.StartInstance(ctx.Context, ctx.Config, *profile, bestInstance, instances, ctx.ConfigDir, cmd.Debug)
 	if err != nil {
 		return uerror.WithExitCode(exitCode, uerror.WithStackTrace(err))
 	}

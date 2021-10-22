@@ -28,7 +28,7 @@ var CLI struct {
 }
 
 type CommandContext struct {
-	Config    []internal.ProfileConfiguration
+	Config    internal.Configuration
 	ConfigDir string
 	Context   context.Context
 }
@@ -51,19 +51,19 @@ func Run(args []string) error {
 	})
 }
 
-func loadConfig(cliPath string) ([]internal.ProfileConfiguration, string, error) {
+func loadConfig(cliPath string) (internal.Configuration, string, error) {
 	if cliPath != "" {
 		return internal.ReadConfiguration(cliPath)
 	}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return nil, "", uerror.WithStackTrace(err)
+		return internal.Configuration{}, "", uerror.WithStackTrace(err)
 	}
 	homeConfigFile := filepath.Join(home, ".config/tbml/config.json")
 	homeConfigFileExists, err := uio.FileExists(homeConfigFile)
 	if err != nil {
-		return nil, "", uerror.WithStackTrace(err)
+		return internal.Configuration{}, "", uerror.WithStackTrace(err)
 	}
 	if homeConfigFileExists {
 		return internal.ReadConfiguration(homeConfigFile)
@@ -72,11 +72,11 @@ func loadConfig(cliPath string) ([]internal.ProfileConfiguration, string, error)
 	etcConfigFile := "/etc/tbml/config.json"
 	etcConfigFileExists, err := uio.FileExists(etcConfigFile)
 	if err != nil {
-		return nil, "", uerror.WithStackTrace(err)
+		return internal.Configuration{}, "", uerror.WithStackTrace(err)
 	}
 	if etcConfigFileExists {
 		return internal.ReadConfiguration(etcConfigFile)
 	}
 
-	return nil, "", uerror.WithStackTrace(ErrNoConfig)
+	return internal.Configuration{}, "", uerror.WithStackTrace(ErrNoConfig)
 }

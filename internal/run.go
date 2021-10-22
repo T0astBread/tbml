@@ -27,13 +27,10 @@ const relativeProfilePath = ".local/share/torbrowser/tbb/x86_64/tor-browser_en-U
 //go:embed torbrowser-launcher.profile
 var tblFirejailProfile []byte
 
-func StartInstance(ctx context.Context, profile ProfileConfiguration, instance ProfileInstance, allInstances []ProfileInstance, configDir string, debugShell bool) (exitCode uint, err error) {
-	instanceDir, err := getInstanceDir(instance)
-	if err != nil {
-		return genericErrorExitCode, uerror.WithStackTrace(err)
-	}
+func StartInstance(ctx context.Context, config Configuration, profile ProfileConfiguration, instance ProfileInstance, allInstances []ProfileInstance, configDir string, debugShell bool) (exitCode uint, err error) {
+	instanceDir := getInstanceDir(config, instance)
 
-	cleanUpInstanceData, err := writeInstanceData(profile, instance)
+	cleanUpInstanceData, err := writeInstanceData(config, profile, instance)
 	if err != nil {
 		return genericErrorExitCode, uerror.WithStackTrace(err)
 	}
@@ -56,11 +53,8 @@ func StartInstance(ctx context.Context, profile ProfileConfiguration, instance P
 	return runFirejail(ctx, instanceDir, debugShell)
 }
 
-func writeInstanceData(profile ProfileConfiguration, instance ProfileInstance) (cleanup func() error, err error) {
-	instanceDir, err := getInstanceDir(instance)
-	if err != nil {
-		return nil, uerror.WithStackTrace(err)
-	}
+func writeInstanceData(config Configuration, profile ProfileConfiguration, instance ProfileInstance) (cleanup func() error, err error) {
+	instanceDir := getInstanceDir(config, instance)
 
 	instanceDataPath := filepath.Join(instanceDir, "profile-instance.json")
 
