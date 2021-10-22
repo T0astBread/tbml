@@ -19,8 +19,7 @@ var CLI struct {
 
 	Open OpenCmd `cmd:"" default:"1" help:"Open a new tab (default if no arguments are given)"`
 
-	Ls struct {
-	} `cmd:"" help:"List profiles, profile instances and topics"`
+	Ls LsCmd `cmd:"" help:"List profiles, profile instances and topics"`
 
 	Rm struct {
 		Instance string `arg:"" help:"The label of the instance to remove"`
