@@ -123,8 +123,14 @@ func ensureFiles(profile ProfileConfiguration, configDir string, instanceDir str
 
 	userChromePath := filepath.Join(profileDir, "chrome/userChrome.css")
 	if profile.UserChromeFile == nil {
-		if err := os.Remove(userChromePath); err != nil {
+		userChromeExists, err := uio.FileExists(userChromePath)
+		if err != nil {
 			return uerror.WithStackTrace(err)
+		}
+		if userChromeExists {
+			if err := os.Remove(userChromePath); err != nil {
+				return uerror.WithStackTrace(err)
+			}
 		}
 	} else {
 		ensureExistsFrom(userChromePath, filepath.Join(configDir, *profile.UserChromeFile))
@@ -132,8 +138,14 @@ func ensureFiles(profile ProfileConfiguration, configDir string, instanceDir str
 
 	userJSPath := filepath.Join(profileDir, "user.js")
 	if profile.UserJSFile == nil {
-		if err := os.Remove(userJSPath); err != nil {
+		userJSExists, err := uio.FileExists(userJSPath)
+		if err != nil {
 			return uerror.WithStackTrace(err)
+		}
+		if userJSExists {
+			if err := os.Remove(userJSPath); err != nil {
+				return uerror.WithStackTrace(err)
+			}
 		}
 	} else {
 		ensureExistsFrom(userJSPath, filepath.Join(configDir, *profile.UserJSFile))
