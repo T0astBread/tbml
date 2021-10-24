@@ -148,3 +148,27 @@ func TestGetProfileInstancesAbsolute(t *testing.T) {
 	expected := getProfileInstancesFixture()
 	assert.Equal(t, expected, actual)
 }
+
+func TestGetProfileInstance(t *testing.T) {
+	config := getConfigurationFixture()
+	config.ProfilePath = "testdata/instances/profiles"
+
+	actual, err := internal.GetProfileInstance(config, "test-2")
+	assert.NoError(t, err)
+
+	expected := getProfileInstancesFixture()[1]
+	assert.Equal(t, "test-2", expected.InstanceLabel)
+	assert.Equal(t, expected, actual)
+}
+
+func TestGetProfileInstanceAbsolute(t *testing.T) {
+	config, cleanup := setUpProfilesWithAbsolutePath(t)
+	defer cleanup()
+
+	actual, err := internal.GetProfileInstance(config, "test-2")
+	assert.NoError(t, err)
+
+	expected := getProfileInstancesFixture()[1]
+	assert.Equal(t, "test-2", expected.InstanceLabel)
+	assert.Equal(t, expected, actual)
+}
