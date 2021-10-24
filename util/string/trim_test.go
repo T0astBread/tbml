@@ -50,7 +50,7 @@ func TestTrimIndentationPanic(t *testing.T) {
 
 			This line is not properly indented.
 			`,
-			panicMessage: "Indentation of line 4 (3) < first line indentation of 4",
+			panicMessage: "Indentation of line 3 (3) < first line indentation of 4",
 		},
 		{
 			desc: "Last indentation != first - 1",
