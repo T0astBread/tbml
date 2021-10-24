@@ -1,0 +1,13 @@
+{
+	"ProfilePath": "~/.tbml",
+	"Profiles": [
+		{
+			"ExtensionFiles": [
+				"extensions/foobar@t0ast.cc.xpi"
+			],
+			"Label": "test",
+			"UserChromeFile": "userChrome.css",
+			"UserJSFile": "user.js"
+		}
+	]
+}
