@@ -239,3 +239,11 @@ func TestFindProfileByLabelNonexistent(t *testing.T) {
 
 	assert.Nil(t, actual)
 }
+
+func TestGetProfileLabels(t *testing.T) {
+	config := getConfigurationFixtureWithMoreProfiles()
+
+	actual := internal.GetProfileLabels(config)
+
+	assert.Equal(t, []string{"test", "test-other"}, actual)
+}
