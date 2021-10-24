@@ -262,3 +262,71 @@ func TestIsNewTopic(t *testing.T) {
 	assert.True(t, internal.IsNewTopic(instances, "unused-topic-label"))
 	assert.False(t, internal.IsNewTopic(instances, "test-usage"))
 }
+
+func TestGetBestInstance(t *testing.T) {
+	testCases := []struct {
+		desc string
+
+		expectedBestInstance internal.ProfileInstance
+		instances            []internal.ProfileInstance
+	}{
+		{
+			desc: "Choose only free instance",
+
+			expectedBestInstance: getProfileInstancesFixture()[0],
+			instances:            getProfileInstancesFixture(),
+		},
+		{
+			desc: "Choose oldest instance",
+
+			expectedBestInstance: internal.ProfileInstance{
+				InstanceLabel: "oldest-instance",
+				Created:       time.UnixMilli(0),
+				ProfileLabel:  "test",
+			},
+			instances: append(getProfileInstancesFixture(), internal.ProfileInstance{
+				InstanceLabel: "oldest-instance",
+				Created:       time.UnixMilli(0),
+				ProfileLabel:  "test",
+			}),
+		},
+		{
+			desc: "Create new instance",
+
+			expectedBestInstance: internal.ProfileInstance{
+				InstanceLabel: "test-1",
+				ProfileLabel:  "test",
+			},
+			instances: []internal.ProfileInstance{},
+		},
+		{
+			desc: "Create new instance with incremented number in label",
+
+			expectedBestInstance: internal.ProfileInstance{
+				InstanceLabel: "test-3",
+				ProfileLabel:  "test",
+			},
+			instances: getProfileInstancesFixture()[1:],
+		},
+		{
+			desc: "Skip instances of other profiles",
+
+			expectedBestInstance: getProfileInstancesFixture()[0],
+			instances: append(getProfileInstancesFixture(), internal.ProfileInstance{
+				InstanceLabel: "oldest-instance",
+				Created:       time.UnixMilli(0),
+				ProfileLabel:  "test-other",
+			}),
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			config := getConfigurationFixture()
+			assert.Equal(t, config.Profiles[0].Label, "test")
+
+			actual := internal.GetBestInstance(config.Profiles[0], tC.instances)
+
+			assert.Equal(t, tC.expectedBestInstance, actual)
+		})
+	}
+}
