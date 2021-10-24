@@ -172,3 +172,34 @@ func TestGetProfileInstanceAbsolute(t *testing.T) {
 	assert.Equal(t, "test-2", expected.InstanceLabel)
 	assert.Equal(t, expected, actual)
 }
+
+func TestDeleteInstance(t *testing.T) {
+	config, cleanup := setUpProfilesWithAbsolutePath(t)
+	defer cleanup()
+
+	instancesBefore, err := internal.GetProfileInstances(config)
+	assert.NoError(t, err)
+	assert.Len(t, instancesBefore, 2)
+
+	assert.NoError(t, internal.DeleteInstance(config, instancesBefore[0]))
+
+	instancesAfter, err := internal.GetProfileInstances(config)
+	assert.NoError(t, err)
+	assert.Equal(t, instancesBefore[1:], instancesAfter)
+}
+
+func TestDeleteInstanceInUse(t *testing.T) {
+	config, cleanup := setUpProfilesWithAbsolutePath(t)
+	defer cleanup()
+
+	instancesBefore, err := internal.GetProfileInstances(config)
+	assert.NoError(t, err)
+	assert.Len(t, instancesBefore, 2)
+
+	err = internal.DeleteInstance(config, instancesBefore[1])
+	assert.ErrorIs(t, err, internal.ErrInstanceInUse)
+
+	instancesAfter, err := internal.GetProfileInstances(config)
+	assert.NoError(t, err)
+	assert.Equal(t, instancesBefore, instancesAfter)
+}
