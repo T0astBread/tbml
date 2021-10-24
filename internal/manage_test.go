@@ -31,6 +31,24 @@ func getConfigurationFixture() internal.Configuration {
 	}
 }
 
+func getConfigurationFixtureWithMoreProfiles() internal.Configuration {
+	return internal.Configuration{
+		Profiles: []internal.ProfileConfiguration{
+			{
+				ExtensionFiles: []string{
+					"extensions/foobar@t0ast.cc.xpi",
+				},
+				Label:          "test",
+				UserChromeFile: &uc,
+				UserJSFile:     &uj,
+			},
+			{
+				Label: "test-other",
+			},
+		},
+	}
+}
+
 func getProfileInstancesFixture() []internal.ProfileInstance {
 	ul2 := "test-usage"
 	up2 := 1234
@@ -202,4 +220,22 @@ func TestDeleteInstanceInUse(t *testing.T) {
 	instancesAfter, err := internal.GetProfileInstances(config)
 	assert.NoError(t, err)
 	assert.Equal(t, instancesBefore, instancesAfter)
+}
+
+func TestFindProfileByLabel(t *testing.T) {
+	config := getConfigurationFixtureWithMoreProfiles()
+	assert.Len(t, config.Profiles, 2)
+
+	actual := internal.FindProfileByLabel(config, "test")
+
+	assert.Equal(t, &config.Profiles[0], actual)
+}
+
+func TestFindProfileByLabelNonexistent(t *testing.T) {
+	config := getConfigurationFixtureWithMoreProfiles()
+	assert.Len(t, config.Profiles, 2)
+
+	actual := internal.FindProfileByLabel(config, "nonexistent")
+
+	assert.Nil(t, actual)
 }
