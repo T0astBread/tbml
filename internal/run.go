@@ -213,7 +213,7 @@ func writePortSettings(instanceDir string, allInstances []ProfileInstance) error
 	controlPort := 9151 + 10*runningInstances
 
 	profileDir := filepath.Join(instanceDir, relativeProfilePath)
-	if err := os.MkdirAll(profileDir, uio.FileModeURWGRWO); err != nil {
+	if err := os.MkdirAll(profileDir, uio.FileModeURWXGRWXO); err != nil {
 		return uerror.WithStackTrace(err)
 	}
 
