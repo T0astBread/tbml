@@ -16,16 +16,15 @@ import (
 	ustring "t0ast.cc/tbml/util/string"
 )
 
-const defaultTBLSettings = `
-{"installed": false, "download_over_tor": true, "tor_socks_address": "127.0.0.1:9050", "mirror": "https://dist.torproject.org/", "force_en-US": false}
-`
-
 const tblFirejailProfileFileName = "torbrowser-launcher.profile"
 
 const relativeProfilePath = ".local/share/torbrowser/tbb/x86_64/tor-browser_en-US/Browser/TorBrowser/Data/Browser/profile.default"
 
 //go:embed torbrowser-launcher.profile
 var tblFirejailProfile []byte
+
+//go:embed torbrowser-launcher-default-settings.json
+var tblDefaultSettings []byte
 
 func StartInstance(ctx context.Context, config Configuration, profile ProfileConfiguration, instance ProfileInstance, allInstances []ProfileInstance, configDir string, debugShell bool) (exitCode uint, err error) {
 	instanceDir := getInstanceDir(config, instance)
@@ -98,7 +97,7 @@ func writeInstanceData(config Configuration, profile ProfileConfiguration, insta
 
 func ensureFiles(profile ProfileConfiguration, configDir string, instanceDir string) error {
 	tblSettingsPath := filepath.Join(instanceDir, ".config/torbrowser/settings.json")
-	if err := writeIfNotExists(tblSettingsPath, []byte(defaultTBLSettings)); err != nil {
+	if err := writeIfNotExists(tblSettingsPath, tblDefaultSettings); err != nil {
 		return uerror.WithStackTrace(err)
 	}
 
