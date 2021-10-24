@@ -255,3 +255,10 @@ func TestGetTopics(t *testing.T) {
 
 	assert.Equal(t, []string{"test-usage"}, actual)
 }
+
+func TestIsNewTopic(t *testing.T) {
+	instances := getProfileInstancesFixture()
+
+	assert.True(t, internal.IsNewTopic(instances, "unused-topic-label"))
+	assert.False(t, internal.IsNewTopic(instances, "test-usage"))
+}
