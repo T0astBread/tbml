@@ -5,9 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+
 	"t0ast.cc/tbml/internal"
+	uio "t0ast.cc/tbml/util/io"
 )
 
 var uc = "userChrome.css"
@@ -25,6 +28,40 @@ func getConfigurationFixture() internal.Configuration {
 				UserJSFile:     &uj,
 			},
 		},
+	}
+}
+
+func getProfileInstancesFixture() []internal.ProfileInstance {
+	ul2 := "test-usage"
+	up2 := 1234
+	return []internal.ProfileInstance{
+		{
+			Created:       time.Date(2021, 10, 24, 18, 12, 1, 289350236, time.UTC),
+			InstanceLabel: "test-1",
+			LastUsed:      time.Date(2021, 10, 24, 18, 12, 13, 382409155, time.UTC),
+			ProfileLabel:  "test",
+		},
+		{
+			Created:       time.Date(2021, 10, 25, 18, 12, 1, 289350236, time.UTC),
+			InstanceLabel: "test-2",
+			LastUsed:      time.Date(2021, 10, 25, 18, 12, 13, 382409155, time.UTC),
+			ProfileLabel:  "test",
+			UsageLabel:    &ul2,
+			UsagePID:      &up2,
+		},
+	}
+}
+
+func setUpProfilesWithAbsolutePath(t *testing.T) (internal.Configuration, func()) {
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "tbml-test-*")
+	assert.NoError(t, err)
+	assert.NoError(t, uio.CopyDir("testdata/instances/profiles", tmpDir))
+
+	config := getConfigurationFixture()
+	config.ProfilePath = tmpDir
+
+	return config, func() {
+		assert.NoError(t, os.RemoveAll(tmpDir))
 	}
 }
 
@@ -88,4 +125,26 @@ func TestReadConfiguration(t *testing.T) {
 func TestReadConfigurationNonexistent(t *testing.T) {
 	_, _, err := internal.ReadConfiguration("testdata/config-nonexistent.json")
 	assert.ErrorIs(t, err, fs.ErrNotExist)
+}
+
+func TestGetProfileInstances(t *testing.T) {
+	config := getConfigurationFixture()
+	config.ProfilePath = "testdata/instances/profiles"
+
+	actual, err := internal.GetProfileInstances(config)
+	assert.NoError(t, err)
+
+	expected := getProfileInstancesFixture()
+	assert.Equal(t, expected, actual)
+}
+
+func TestGetProfileInstancesAbsolute(t *testing.T) {
+	config, cleanup := setUpProfilesWithAbsolutePath(t)
+	defer cleanup()
+
+	actual, err := internal.GetProfileInstances(config)
+	assert.NoError(t, err)
+
+	expected := getProfileInstancesFixture()
+	assert.Equal(t, expected, actual)
 }
