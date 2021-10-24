@@ -2,8 +2,11 @@ package io
 
 import (
 	"errors"
+	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 // FileModeURWGRWO is the bitmask for the Unix permission flags
@@ -36,4 +39,46 @@ func FileExists(name string) (bool, error) {
 		return false, err
 	}
 	return !stat.IsDir(), nil
+}
+
+// CopyDir copies all files in the `src` directroy into `dst`,
+// preserving permissions.
+func CopyDir(src, dst string) error {
+	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		dstPath := strings.TrimPrefix(path, src)
+		dstPath = strings.TrimPrefix(dstPath, "/")
+		dstPath = filepath.Join(dst, dstPath)
+		fileInfo, err := d.Info()
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if err := os.MkdirAll(dstPath, fileInfo.Mode()); err != nil {
+				return err
+			}
+		} else if err := copyDirFile(path, dstPath, fileInfo); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func copyDirFile(path, dst string, fileInfo fs.FileInfo) error {
+	srcFile, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, fileInfo.Mode())
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+	if _, err := io.Copy(dstFile, srcFile); err != nil {
+		return err
+	}
+	return nil
 }
