@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	uio "t0ast.cc/tbml/util/io"
+	ustring "t0ast.cc/tbml/util/string"
 )
 
 func setUpTestEnvironment(t *testing.T) (config Configuration, profile ProfileConfiguration, instance ProfileInstance, instanceDir string, cleanup func()) {
@@ -205,6 +207,74 @@ func TestEnsureFiles(t *testing.T) {
 					verifyFileContentsFromMap(t)
 				}
 			})
+		})
+	}
+}
+
+func TestWritePortSettings(t *testing.T) {
+	somePid := 1234
+
+	testCases := []struct {
+		desc string
+
+		existingUserJSContent string
+		expectedControlPort   uint
+		expectedSOCKSPort     uint
+		extraInstances        []ProfileInstance
+	}{
+		{
+			desc: "First port ist free",
+
+			expectedControlPort: 9151,
+			expectedSOCKSPort:   9150,
+		},
+		{
+			desc: "Later port",
+
+			expectedControlPort: 9161,
+			expectedSOCKSPort:   9160,
+			extraInstances: []ProfileInstance{
+				{
+					InstanceLabel: "test-2",
+					ProfileLabel:  "test",
+					UsagePID:      &somePid,
+				},
+			},
+		},
+		{
+			desc: "With existing user.js file",
+
+			existingUserJSContent: ustring.TrimIndentation(`
+				// This is an existing user.js file.
+				user_pref("foo", "bar");
+
+			`),
+			expectedControlPort: 9151,
+			expectedSOCKSPort:   9150,
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			_, _, instance, instanceDir, cleanUpEnvironment := setUpTestEnvironment(t)
+			defer cleanUpEnvironment()
+
+			userJSPath := filepath.Join(instanceDir, relativeProfilePath, "user.js")
+			if tC.existingUserJSContent != "" {
+				assert.NoError(t, os.MkdirAll(filepath.Dir(userJSPath), uio.FileModeURWXGRWXO))
+				assert.NoError(t, os.WriteFile(userJSPath, []byte(tC.existingUserJSContent), uio.FileModeURWGRWO))
+			}
+
+			assert.NoError(t, writePortSettings(instanceDir, append(tC.extraInstances, instance)))
+
+			actualUserJS, err := os.ReadFile(userJSPath)
+			assert.NoError(t, err)
+
+			expectedUserJS := fmt.Sprintf(ustring.TrimIndentation(`
+				%suser_pref("network.proxy.socks_port", %d);
+				user_pref("extensions.torlauncher.control_port", %d);
+			`), tC.existingUserJSContent, tC.expectedControlPort, tC.expectedSOCKSPort)
+
+			assert.Equal(t, expectedUserJS, string(actualUserJS))
 		})
 	}
 }
