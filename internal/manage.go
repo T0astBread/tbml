@@ -35,6 +35,8 @@ func ReadConfiguration(configFile string) (config Configuration, configDir strin
 			return Configuration{}, "", uerror.StackTracef("Failed to expand home directory in profile path: %w", err)
 		}
 		config.ProfilePath = filepath.Join(home, config.ProfilePath[2:])
+	} else if !filepath.IsAbs(config.ProfilePath) {
+		config.ProfilePath = filepath.Join(filepath.Dir(configFile), config.ProfilePath)
 	}
 
 	return config, filepath.Dir(configFile), nil

@@ -63,6 +63,14 @@ func TestReadConfiguration(t *testing.T) {
 				expected.ProfilePath = "/tmp/tbml"
 			},
 		},
+		{
+			desc: "Relative profile path",
+
+			configFileName: "config-relative-profile-path.json",
+			prepareExpected: func(expected *internal.Configuration) {
+				expected.ProfilePath = "testdata/tbml/profiles"
+			},
+		},
 	}
 	for _, tC := range testCases {
 		t.Run(tC.desc, func(t *testing.T) {
