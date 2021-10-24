@@ -247,3 +247,11 @@ func TestGetProfileLabels(t *testing.T) {
 
 	assert.Equal(t, []string{"test", "test-other"}, actual)
 }
+
+func TestGetTopics(t *testing.T) {
+	instances := getProfileInstancesFixture()
+
+	actual := internal.GetTopics(instances)
+
+	assert.Equal(t, []string{"test-usage"}, actual)
+}
