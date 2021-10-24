@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	uerror "t0ast.cc/tbml/util/error"
@@ -121,13 +122,21 @@ func IsNewTopic(instances []ProfileInstance, topic string) bool {
 }
 
 func GetBestInstance(profile ProfileConfiguration, instances []ProfileInstance) ProfileInstance {
-	instancesForProfile := 0
+	maxInstanceNumberForProfile := 0
 	var oldestFreeInstance *ProfileInstance
 	for _, instance := range instances {
 		if instance.ProfileLabel != profile.Label {
 			continue
 		}
-		instancesForProfile++
+
+		profileLabelPrefix := fmt.Sprintf("%s-", instance.ProfileLabel)
+		if strings.HasPrefix(instance.InstanceLabel, profileLabelPrefix) {
+			instanceNumberInLabel, err := strconv.Atoi(strings.TrimPrefix(instance.InstanceLabel, profileLabelPrefix))
+			if err == nil && instanceNumberInLabel > maxInstanceNumberForProfile {
+				maxInstanceNumberForProfile = instanceNumberInLabel
+			}
+		}
+
 		if instance.UsagePID != nil {
 			continue
 		}
@@ -139,7 +148,7 @@ func GetBestInstance(profile ProfileConfiguration, instances []ProfileInstance) 
 
 	if oldestFreeInstance == nil {
 		return ProfileInstance{
-			InstanceLabel: fmt.Sprintf("%s-%d", profile.Label, instancesForProfile+1),
+			InstanceLabel: fmt.Sprintf("%s-%d", profile.Label, maxInstanceNumberForProfile+1),
 			ProfileLabel:  profile.Label,
 		}
 	} else {
