@@ -238,8 +238,12 @@ func setUpBindMounts(instanceDir string) (cleanup func(), err error) {
 	if err != nil {
 		return nil, uerror.WithStackTrace(err)
 	}
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		return nil, uerror.WithStackTrace(err)
+	}
 
-	cleanUpCache, err := bindMount(home, instanceDir, ".cache/torbrowser")
+	cleanUpCache, err := bindMount(cache, filepath.Join(instanceDir, ".cache"), "torbrowser")
 	if err != nil {
 		return nil, uerror.WithStackTrace(err)
 	}
@@ -294,6 +298,7 @@ func runFirejail(ctx context.Context, instanceDir string, debugShell bool) (uint
 	}
 
 	firejailCmd := exec.CommandContext(ctx, firejailArgs[0], firejailArgs[1:]...)
+	firejailCmd.Env = append(os.Environ(), "XDG_CACHE_HOME=")
 	firejailCmd.Stdin = os.Stdin
 	firejailCmd.Stdout = os.Stdout
 	firejailCmd.Stderr = os.Stderr
