@@ -41,6 +41,32 @@ func FileExists(name string) (bool, error) {
 	return !stat.IsDir(), nil
 }
 
+// CopyFile copies the `src` file to `dst`.
+func CopyFile(src, dst string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	fileInfo, err := srcFile.Stat()
+	if err != nil {
+		return err
+	}
+
+	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, fileInfo.Mode())
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	if _, err := io.Copy(dstFile, srcFile); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // CopyDir copies all files in the `src` directroy into `dst`,
 // preserving permissions.
 func CopyDir(src, dst string) error {
