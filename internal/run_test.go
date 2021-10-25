@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -275,6 +277,109 @@ func TestWritePortSettings(t *testing.T) {
 			`), tC.existingUserJSContent, tC.expectedControlPort, tC.expectedSOCKSPort)
 
 			assert.Equal(t, expectedUserJS, string(actualUserJS))
+		})
+	}
+}
+
+func assertIsBindMount(t *testing.T, mountpoint, dst string) {
+	mountpointCmd := exec.Command("mountpoint", mountpoint)
+	output, err := mountpointCmd.CombinedOutput()
+	assert.NoError(t, err)
+
+	assert.Equal(t, fmt.Sprintf("%s is a mountpoint\n", mountpoint), string(output))
+
+	testFileContent := "This should appear in the dst directory."
+	assert.NoError(t, os.WriteFile(filepath.Join(mountpoint, "mountpoint-test.txt"), []byte(testFileContent), uio.FileModeURWGRWO))
+
+	testFilePathInDst := filepath.Join(dst, "mountpoint-test.txt")
+	assert.FileExists(t, testFilePathInDst)
+	testFileContentInDst, err := os.ReadFile(testFilePathInDst)
+	assert.NoError(t, err)
+	assert.Equal(t, testFileContent, string(testFileContentInDst))
+}
+
+func assertNoMountpoint(t *testing.T, mountpoint string) {
+	mountpointCmd := exec.Command("mountpoint", mountpoint)
+	output, err := mountpointCmd.CombinedOutput()
+
+	assert.Error(t, err)
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		assert.Equal(t, 1, exitErr.ExitCode())
+	} else {
+		assert.Fail(t, "Error was not an ExitError", err)
+	}
+
+	assert.Equal(t, fmt.Sprintf("%s is not a mountpoint\n", mountpoint), string(output))
+}
+
+func TestSetUpBindMounts(t *testing.T) {
+	testCases := []struct {
+		desc string
+
+		cachePath string
+	}{
+		{
+			desc: "Cache outside of home directory",
+
+			cachePath: "tmp-cache",
+		},
+		{
+			desc: "Cache in home directory",
+
+			cachePath: "tmp-home/.cache",
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			_, _, _, instanceDir, cleanUpEnvironment := setUpTestEnvironment(t)
+			defer cleanUpEnvironment()
+
+			assert.Equal(t, runtime.GOOS, "linux")
+			origHome := os.Getenv("HOME")
+			origCache := os.Getenv("XDG_CACHE_HOME")
+			resetEnv := func() {
+				os.Setenv("HOME", origHome)
+				os.Setenv("XDG_CACHE_HOME", origCache)
+			}
+			defer resetEnv()
+
+			tmpHome := filepath.Join(instanceDir, "tmp-home")
+			tmpCache := filepath.Join(instanceDir, tC.cachePath)
+			os.Setenv("HOME", tmpHome)
+			if tC.cachePath == "" {
+				os.Unsetenv("XDG_CACHE_HOME")
+			} else {
+				os.Setenv("XDG_CACHE_HOME", tmpCache)
+			}
+
+			home, err := os.UserHomeDir()
+			assert.NoError(t, err)
+			assert.Equal(t, tmpHome, home)
+			gnupgHomedirDst := filepath.Join(home, ".local/share/torbrowser/gnupg_homedir")
+			assert.NoError(t, os.MkdirAll(gnupgHomedirDst, uio.FileModeURWXGRWXO))
+
+			cache, err := os.UserCacheDir()
+			assert.NoError(t, err)
+			assert.Equal(t, tmpCache, cache)
+			torbrowserCacheDst := filepath.Join(cache, "torbrowser")
+			assert.NoError(t, os.MkdirAll(torbrowserCacheDst, uio.FileModeURWXGRWXO))
+
+			cleanUp, err := setUpBindMounts(instanceDir)
+			assert.NoError(t, err)
+			defer cleanUp()
+
+			resetEnv()
+
+			torbrowserCacheInstanceDir := filepath.Join(instanceDir, ".cache/torbrowser")
+			gnupgHomedirInstanceDir := filepath.Join(instanceDir, ".local/share/torbrowser/gnupg_homedir")
+
+			assertIsBindMount(t, torbrowserCacheInstanceDir, torbrowserCacheDst)
+			assertIsBindMount(t, gnupgHomedirInstanceDir, gnupgHomedirDst)
+
+			cleanUp()
+
+			assertNoMountpoint(t, torbrowserCacheInstanceDir)
+			assertNoMountpoint(t, gnupgHomedirInstanceDir)
 		})
 	}
 }
