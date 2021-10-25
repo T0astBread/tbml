@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"testing"
 	"time"
 
@@ -195,6 +196,136 @@ func TestEnsureFiles(t *testing.T) {
 					verifyFileContentsFromMap(t)
 				}
 			})
+		})
+	}
+}
+
+func TestEnsureExtensions(t *testing.T) {
+	testCases := []struct {
+		desc string
+
+		extensionsInProfile       []string
+		installedExtensionsBefore []string
+
+		installedExtensionsAfter []string
+	}{
+		{
+			desc: "Only new extensions",
+
+			extensionsInProfile: []string{
+				"foo@t0ast.cc",
+				"bar@t0ast.cc",
+			},
+
+			installedExtensionsAfter: []string{
+				"foo@t0ast.cc",
+				"bar@t0ast.cc",
+			},
+		},
+		{
+			desc: "Remove old extension",
+
+			extensionsInProfile: []string{
+				"foo@t0ast.cc",
+				"bar@t0ast.cc",
+			},
+			installedExtensionsBefore: []string{
+				"baz@t0ast.cc",
+			},
+
+			installedExtensionsAfter: []string{
+				"foo@t0ast.cc",
+				"bar@t0ast.cc",
+			},
+		},
+		{
+			desc: "Keep some extensions",
+
+			extensionsInProfile: []string{
+				"foo@t0ast.cc",
+				"bar@t0ast.cc",
+			},
+			installedExtensionsBefore: []string{
+				"bar@t0ast.cc",
+				"baz@t0ast.cc",
+			},
+
+			installedExtensionsAfter: []string{
+				"foo@t0ast.cc",
+				"bar@t0ast.cc",
+			},
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			config, profile, instance, instanceDir, cleanUpEnvironment := setUpTestEnvironment(t)
+			defer cleanUpEnvironment()
+
+			configDir := "testdata/ensure-extensions"
+
+			extensionsDir := filepath.Join(instanceDir, relativeProfilePath, "extensions")
+			assert.NoError(t, os.MkdirAll(extensionsDir, uio.FileModeURWXGRWXO))
+
+			doNotDeleteContent := []byte("Do not delete me plz :>")
+			doNotDeletePath := filepath.Join(extensionsDir, "donotdelete@t0ast.cc.xpi")
+			assert.NoError(t, os.WriteFile(doNotDeletePath, doNotDeleteContent, uio.FileModeURWGRWO))
+
+			for _, ext := range tC.installedExtensionsBefore {
+				srcPath := filepath.Join("testdata/ensure-extensions/extensions", fmt.Sprint(ext, ".xpi"))
+				dstPath := filepath.Join(extensionsDir, fmt.Sprint(ext, ".xpi"))
+				assert.NoError(t, uio.CopyFile(srcPath, dstPath))
+
+				instance.InstalledExtensions = append(instance.InstalledExtensions, ext)
+			}
+
+			for _, ext := range tC.extensionsInProfile {
+				profile.ExtensionFiles = append(profile.ExtensionFiles, fmt.Sprint("extensions/", ext, ".xpi"))
+			}
+
+			instanceDataBytes, err := json.Marshal(instance)
+			assert.NoError(t, err)
+			assert.NoError(t, os.MkdirAll(instanceDir, uio.FileModeURWXGRWXO))
+			assert.NoError(t, os.WriteFile(filepath.Join(instanceDir, "profile-instance.json"), instanceDataBytes, uio.FileModeURWGRWO))
+
+			assert.NoError(t, ensureExtensions(config, profile, instance.InstanceLabel, configDir, instanceDir))
+
+			assert.FileExists(t, doNotDeletePath)
+			doNotDeleteContentAfter, err := os.ReadFile(doNotDeletePath)
+			assert.NoError(t, err)
+			assert.Equal(t, doNotDeleteContent, doNotDeleteContentAfter)
+
+			instanceAfter, err := GetProfileInstance(config, "test-1")
+			assert.NoError(t, err)
+
+			expected := tC.installedExtensionsAfter
+			sort.Slice(expected, func(i, j int) bool {
+				return expected[i] < expected[j]
+			})
+			actual := instanceAfter.InstalledExtensions
+			sort.Slice(actual, func(i, j int) bool {
+				return actual[i] < actual[j]
+			})
+			assert.Equal(t, expected, actual)
+
+			extensionsAfter := make(map[string]bool)
+			for _, ext := range tC.installedExtensionsAfter {
+				extensionsAfter[ext] = true
+			}
+			for _, ext := range tC.installedExtensionsBefore {
+				srcPath := filepath.Join("testdata/ensure-extensions/extensions", fmt.Sprint(ext, ".xpi"))
+				dstPath := filepath.Join(extensionsDir, fmt.Sprint(ext, ".xpi"))
+				if extensionsAfter[ext] {
+					assert.FileExists(t, dstPath)
+					expectedFileContent, err := os.ReadFile(srcPath)
+					assert.NoError(t, err)
+					actualFileContent, err := os.ReadFile(dstPath)
+					assert.NoError(t, err)
+					assert.Equal(t, expectedFileContent, actualFileContent)
+				} else {
+					assert.FileExists(t, srcPath)
+					assert.NoFileExists(t, dstPath)
+				}
+			}
 		})
 	}
 }
