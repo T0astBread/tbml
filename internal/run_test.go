@@ -225,7 +225,7 @@ func TestWritePortSettings(t *testing.T) {
 		extraInstances        []ProfileInstance
 	}{
 		{
-			desc: "First port ist free",
+			desc: "First port is free",
 
 			expectedControlPort: 9151,
 			expectedSOCKSPort:   9150,
