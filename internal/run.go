@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	uerror "t0ast.cc/tbml/util/error"
@@ -36,6 +37,10 @@ func StartInstance(ctx context.Context, config Configuration, profile ProfileCon
 	defer cleanUpInstanceData()
 
 	if err := ensureFiles(profile, configDir, instanceDir); err != nil {
+		return genericErrorExitCode, uerror.WithStackTrace(err)
+	}
+
+	if err := ensureExtensions(config, profile, instance.InstanceLabel, configDir, instanceDir); err != nil {
 		return genericErrorExitCode, uerror.WithStackTrace(err)
 	}
 
@@ -88,6 +93,13 @@ func writeInstanceData(config Configuration, profile ProfileConfiguration, insta
 	}
 
 	return func() error {
+		instanceDataBytes, err := os.ReadFile(instanceDataPath)
+		if err != nil {
+			return uerror.WithStackTrace(err)
+		}
+		instance = ProfileInstance{}
+		json.Unmarshal(instanceDataBytes, &instance)
+
 		instance.LastUsed = time.Now()
 		instance.UsageLabel = nil
 		instance.UsagePID = nil
@@ -107,18 +119,6 @@ func ensureFiles(profile ProfileConfiguration, configDir string, instanceDir str
 	}
 
 	profileDir := filepath.Join(instanceDir, relativeProfilePath)
-
-	extensionsDir := filepath.Join(profileDir, "extensions")
-	if err := os.RemoveAll(extensionsDir); err != nil {
-		return uerror.WithStackTrace(err)
-	}
-	for _, extensionFilePath := range profile.ExtensionFiles {
-		extensionFileName := filepath.Base(extensionFilePath)
-		absoluteExtensionFilePath := filepath.Join(configDir, extensionFilePath)
-		if err := ensureExistsFrom(filepath.Join(extensionsDir, extensionFileName), absoluteExtensionFilePath); err != nil {
-			return uerror.WithStackTrace(err)
-		}
-	}
 
 	userChromePath := filepath.Join(profileDir, "chrome/userChrome.css")
 	if profile.UserChromeFile == nil {
@@ -151,6 +151,72 @@ func ensureFiles(profile ProfileConfiguration, configDir string, instanceDir str
 	}
 
 	return nil
+}
+
+func ensureExtensions(config Configuration, profile ProfileConfiguration, instanceLabel, configDir, instanceDir string) error {
+	instance, err := GetProfileInstance(config, instanceLabel)
+	if err != nil {
+		return uerror.WithStackTrace(err)
+	}
+
+	wantedExtensions := make(map[string]bool)
+	extensionPathByID := make(map[string]string)
+	for _, extensionID := range instance.InstalledExtensions {
+		wantedExtensions[extensionID] = false
+	}
+	for _, extensionFilePath := range profile.ExtensionFiles {
+		extensionID := strings.TrimSuffix(filepath.Base(extensionFilePath), ".xpi")
+		wantedExtensions[extensionID] = true
+		extensionPathByID[extensionID] = extensionFilePath
+	}
+	for extensionID, wanted := range wantedExtensions {
+		extensionPathInProfile := filepath.Join(instanceDir, relativeProfilePath, "extensions", fmt.Sprint(extensionID, ".xpi"))
+		if wanted {
+			extensionSrcPath := extensionPathByID[extensionID]
+			if !filepath.IsAbs(extensionSrcPath) {
+				extensionSrcPath = filepath.Join(configDir, extensionSrcPath)
+			}
+			if err := ensureExistsFrom(extensionPathInProfile, extensionSrcPath); err != nil {
+				return uerror.WithStackTrace(err)
+			}
+			instance.InstalledExtensions = includeExtension(instance.InstalledExtensions, extensionID)
+		} else {
+			if err := os.Remove(extensionPathInProfile); err != nil {
+				return uerror.StackTracef("Couldn't delete installed extension %s: %w", extensionID, err)
+			}
+			instance.InstalledExtensions = excludeExtension(instance.InstalledExtensions, extensionID)
+		}
+	}
+
+	instanceDataBytes, err := json.Marshal(instance)
+	if err != nil {
+		return uerror.WithStackTrace(err)
+	}
+	instanceDataPath := filepath.Join(instanceDir, "profile-instance.json")
+	if err := os.WriteFile(instanceDataPath, instanceDataBytes, uio.FileModeURWGRWO); err != nil {
+		return uerror.WithStackTrace(err)
+	}
+
+	return nil
+}
+
+func includeExtension(extensionList []string, extensionID string) []string {
+	for _, idInList := range extensionList {
+		if idInList == extensionID {
+			return extensionList
+		}
+	}
+	return append(extensionList, extensionID)
+}
+
+func excludeExtension(extensionList []string, extensionID string) []string {
+	for i, idInList := range extensionList {
+		if idInList == extensionID {
+			extensionList[i] = extensionList[len(extensionList)-1]
+			return extensionList[:len(extensionList)-1]
+		}
+	}
+	return extensionList
 }
 
 func writeIfNotExists(name string, content []byte) error {

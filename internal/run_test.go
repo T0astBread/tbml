@@ -121,20 +121,6 @@ func TestEnsureFiles(t *testing.T) {
 			},
 		},
 		{
-			desc: "Extensions",
-
-			expectedFiles: map[string]string{
-				filepath.Join(relativeProfilePath, "extensions/foo@t0ast.cc.xpi"): "testdata/ensure-files/extensions/foo@t0ast.cc.xpi",
-				filepath.Join(relativeProfilePath, "extensions/bar@t0ast.cc.xpi"): "testdata/ensure-files/extensions/bar@t0ast.cc.xpi",
-			},
-			prepareProfile: func(profile *ProfileConfiguration) {
-				profile.ExtensionFiles = []string{
-					"extensions/foo@t0ast.cc.xpi",
-					"extensions/bar@t0ast.cc.xpi",
-				}
-			},
-		},
-		{
 			desc: "userChrome.css",
 
 			expectedFiles: map[string]string{

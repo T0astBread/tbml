@@ -20,12 +20,13 @@ type ProfileConfiguration struct {
 }
 
 type ProfileInstance struct {
-	Created       time.Time
-	InstanceLabel string
-	LastUsed      time.Time
-	ProfileLabel  string
-	UsageLabel    *string
-	UsagePID      *int
+	Created             time.Time
+	InstalledExtensions []string
+	InstanceLabel       string
+	LastUsed            time.Time
+	ProfileLabel        string
+	UsageLabel          *string
+	UsagePID            *int
 }
 
 func getInstanceDir(config Configuration, instance ProfileInstance) string {
