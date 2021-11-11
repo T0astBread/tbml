@@ -1,0 +1,17 @@
+signal (send) set=(term, kill) peer=torbrowser_firefox//mothership_connector,
+
+@{HOME}/.local/share/torbrowser/tbb/x86_64/tor-browser_en-US/Browser/TorBrowser/Data/Browser/.mozilla/native-messaging-hosts/** r,
+@{HOME}/mothership-connector rCx -> mothership_connector,
+
+profile mothership_connector {
+	signal (receive) set=(term, kill),
+
+	@{HOME}/mothership-connector rix,
+	@{HOME}/mothership-connector-stderr.log rw,
+
+	/dev/random r,
+	/dev/urandom r,
+	/sys/devices/system/cpu/online r,
+	/sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
+	/usr/lib/x86_64-linux-gnu/* rm,
+}

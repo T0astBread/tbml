@@ -1,4 +1,6 @@
 .cache/
 .vscode/
+internal/mothership-connector
+mothership-connector/mothership-connector-stderr.log
 tbml
 testdata/extensions/

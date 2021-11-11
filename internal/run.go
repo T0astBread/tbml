@@ -1,11 +1,17 @@
 package internal
 
 import (
+	"archive/zip"
+	"bufio"
 	"context"
+	"embed"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,6 +33,12 @@ var tblFirejailProfile []byte
 //go:embed torbrowser-launcher-default-settings.json
 var tblDefaultSettings []byte
 
+//go:embed mothership
+var mothershipExtensionFiles embed.FS
+
+//go:embed mothership-connector
+var mothershipConnector []byte
+
 func StartInstance(ctx context.Context, config Configuration, profile ProfileConfiguration, instance ProfileInstance, allInstances []ProfileInstance, configDir string, debugShell bool) (exitCode uint, err error) {
 	instanceDir := getInstanceDir(config, instance)
 
@@ -44,9 +56,19 @@ func StartInstance(ctx context.Context, config Configuration, profile ProfileCon
 		return genericErrorExitCode, uerror.WithStackTrace(err)
 	}
 
+	if err := ensureMothershipExtension(instanceDir); err != nil {
+		return genericErrorExitCode, uerror.WithStackTrace(err)
+	}
+
 	if err := writePortSettings(instanceDir, allInstances); err != nil {
 		return genericErrorExitCode, uerror.WithStackTrace(err)
 	}
+
+	cleanUpExternalUnixSocket, err := setUpExternalUnixSocket(ctx, instanceDir)
+	if err != nil {
+		return genericErrorExitCode, uerror.WithStackTrace(err)
+	}
+	defer cleanUpExternalUnixSocket()
 
 	cleanUpBindMounts, err := setUpBindMounts(instanceDir)
 	if err != nil {
@@ -219,6 +241,87 @@ func excludeExtension(extensionList []string, extensionID string) []string {
 	return extensionList
 }
 
+func ensureMothershipExtension(instanceDir string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return uerror.WithStackTrace(err)
+	}
+
+	nativeConnectorPath := filepath.Join(instanceDir, "mothership-connector")
+	if err := os.WriteFile(nativeConnectorPath, mothershipConnector, uio.FileModeURWXGRWXO); err != nil {
+		return uerror.WithStackTrace(err)
+	}
+
+	nativeManifest := map[string]interface{}{
+		"name":        "mothership_native_connector",
+		"description": "Bridge between the Mothership extension and tbml outside the sandbox",
+		"path":        filepath.Join(home, "mothership-connector"),
+		"type":        "stdio",
+		"allowed_extensions": []interface{}{
+			"mothership@tbml.t0ast.cc",
+		},
+	}
+	nativeManifestBytes, err := json.Marshal(nativeManifest)
+	if err != nil {
+		return uerror.WithStackTrace(err)
+	}
+	nativeManifestPath := filepath.Join(instanceDir, ".local/share/torbrowser/tbb/x86_64/tor-browser_en-US/Browser/TorBrowser/Data/Browser/.mozilla/native-messaging-hosts/mothership_native_connector.json")
+	if err := ensureExists(nativeManifestPath, nativeManifestBytes); err != nil {
+		return uerror.WithStackTrace(err)
+	}
+
+	extFilePath := filepath.Join(instanceDir, relativeProfilePath, "extensions/mothership@tbml.t0ast.cc.xpi")
+	extFile, err := os.Create(extFilePath)
+	if err != nil {
+		return uerror.WithStackTrace(err)
+	}
+	defer extFile.Close()
+	xpi := zip.NewWriter(extFile)
+
+	if err := fs.WalkDir(mothershipExtensionFiles, "mothership", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		dst, err := xpi.Create(strings.TrimPrefix(path, "mothership/"))
+		if err != nil {
+			return uerror.WithStackTrace(err)
+		}
+		src, err := mothershipExtensionFiles.Open(path)
+		if err != nil {
+			return uerror.WithStackTrace(err)
+		}
+		if _, err := io.Copy(dst, src); err != nil {
+			return uerror.WithStackTrace(err)
+		}
+		return nil
+	}); err != nil {
+		return uerror.WithStackTrace(err)
+	}
+
+	buildVars, err := xpi.Create("build-vars.js")
+	if err != nil {
+		return uerror.WithStackTrace(err)
+	}
+	controlSocketPathJSON, err := json.Marshal(filepath.Join(home, "control-socket"))
+	if err != nil {
+		return uerror.WithStackTrace(err)
+	}
+	if _, err := fmt.Fprintf(buildVars, ustring.TrimIndentation(`
+		const controlSocketPath = %s
+	`), controlSocketPathJSON); err != nil {
+		return uerror.WithStackTrace(err)
+	}
+
+	if err := xpi.Close(); err != nil {
+		return uerror.WithStackTrace(err)
+	}
+
+	return nil
+}
+
 func writeIfNotExists(name string, content []byte) error {
 	exists, err := uio.FileExists(name)
 	if err != nil {
@@ -296,6 +399,69 @@ func writePortSettings(instanceDir string, allInstances []ProfileInstance) error
 		return err
 	}
 
+	return nil
+}
+
+func setUpExternalUnixSocket(ctx context.Context, instanceDir string) (cleanup func() error, err error) {
+	addr, err := net.ResolveUnixAddr("unix", filepath.Join(instanceDir, "control-socket"))
+	if err != nil {
+		return nil, uerror.WithStackTrace(err)
+	}
+	listener, err := net.ListenUnix("unix", addr)
+	if err != nil {
+		return nil, uerror.WithStackTrace(err)
+	}
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				break
+			default:
+			}
+
+			conn, err := listener.AcceptUnix()
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					break
+				}
+				fmt.Fprintln(os.Stderr, err)
+				continue
+			}
+			go func() {
+				defer conn.Close()
+				if err := handleConnection(conn); err != nil {
+					fmt.Fprintln(os.Stderr, err)
+				}
+			}()
+		}
+	}()
+
+	return func() error {
+		return listener.Close()
+	}, nil
+}
+
+func handleConnection(conn *net.UnixConn) error {
+	sc := bufio.NewScanner(conn)
+	for sc.Scan() {
+		var msg interface{}
+		if err := json.Unmarshal(sc.Bytes(), &msg); err != nil {
+			return uerror.WithStackTrace(err)
+		}
+		fmt.Fprintln(os.Stderr, msg)
+
+		resp, err := json.Marshal("Hello from tbml! :>")
+		if err != nil {
+			return uerror.WithStackTrace(err)
+		}
+		if _, err := conn.Write(resp); err != nil {
+			return uerror.WithStackTrace(err)
+		}
+		if _, err := conn.Write([]byte("\n")); err != nil {
+			return uerror.WithStackTrace(err)
+		}
+	}
 	return nil
 }
 

@@ -17,7 +17,7 @@ jobs:
       run: sudo apt-get update && sudo apt-get install -y bindfs
 
     - name: Build
-      run: go build -v ./...
+      run: ./scripts/build
 
     - name: Test
       run: go test -v ./...

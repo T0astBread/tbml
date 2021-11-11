@@ -1,0 +1,5 @@
+#!/bin/bash
+set -euo pipefail
+
+go build -ldflags '-s -w' -o internal/mothership-connector mothership-connector/main.go
+go build -ldflags '-s -w'
