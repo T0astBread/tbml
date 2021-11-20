@@ -36,12 +36,23 @@ func (cmd *OpenCmd) Run(ctx CommandContext) error {
 		cmd.Topic = *topic
 	}
 
-	isNewTopic := internal.IsNewTopic(instances, cmd.Topic)
-	if !isNewTopic {
-		return errors.New("Sorry, opening new tabs in an existing topic is not supported yet :<")
+	topicInstance := internal.FindInstanceByTopic(instances, cmd.Topic)
+	if topicInstance != nil {
+		conn, err := internal.ConnectToExternalUnixSocket(ctx.Config, *topicInstance)
+		if err != nil {
+			return uerror.WithStackTrace(err)
+		}
+		urlStr := ""
+		if cmd.URL != nil {
+			urlStr = cmd.URL.String()
+		}
+		if err := internal.SendOpenTabMessage(conn, urlStr); err != nil {
+			return uerror.WithStackTrace(err)
+		}
+		return nil
 	}
 
-	if cmd.Profile == "" && isNewTopic {
+	if cmd.Profile == "" {
 		profileLabels := internal.GetProfileLabels(ctx.Config)
 		profile, err := gui.Prompt(ctx.Context, profileLabels, "Profile", true)
 		if err != nil {
@@ -63,7 +74,7 @@ func (cmd *OpenCmd) Run(ctx CommandContext) error {
 
 	bestInstance.UsageLabel = &cmd.Topic
 
-	exitCode, err := internal.StartInstance(ctx.Context, ctx.Config, *profile, bestInstance, instances, ctx.ConfigDir, cmd.Debug)
+	exitCode, err := internal.StartInstance(ctx.Context, ctx.Config, *profile, bestInstance, instances, ctx.ConfigDir, cmd.URL, cmd.Debug)
 	if err != nil {
 		return uerror.WithExitCode(exitCode, uerror.WithStackTrace(err))
 	}

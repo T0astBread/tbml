@@ -2,16 +2,15 @@ package internal
 
 import (
 	"archive/zip"
-	"bufio"
 	"context"
 	"embed"
 	_ "embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,7 +38,7 @@ var mothershipExtensionFiles embed.FS
 //go:embed mothership-connector
 var mothershipConnector []byte
 
-func StartInstance(ctx context.Context, config Configuration, profile ProfileConfiguration, instance ProfileInstance, allInstances []ProfileInstance, configDir string, debugShell bool) (exitCode uint, err error) {
+func StartInstance(ctx context.Context, config Configuration, profile ProfileConfiguration, instance ProfileInstance, allInstances []ProfileInstance, configDir string, startURL *url.URL, debugShell bool) (exitCode uint, err error) {
 	instanceDir := getInstanceDir(config, instance)
 
 	cleanUpInstanceData, err := writeInstanceData(config, profile, instance)
@@ -64,7 +63,7 @@ func StartInstance(ctx context.Context, config Configuration, profile ProfileCon
 		return genericErrorExitCode, uerror.WithStackTrace(err)
 	}
 
-	cleanUpExternalUnixSocket, err := setUpExternalUnixSocket(ctx, instanceDir)
+	cleanUpExternalUnixSocket, err := setUpExternalUnixSocket(ctx, instanceDir, startURL)
 	if err != nil {
 		return genericErrorExitCode, uerror.WithStackTrace(err)
 	}
@@ -402,8 +401,8 @@ func writePortSettings(instanceDir string, allInstances []ProfileInstance) error
 	return nil
 }
 
-func setUpExternalUnixSocket(ctx context.Context, instanceDir string) (cleanup func() error, err error) {
-	addr, err := net.ResolveUnixAddr("unix", filepath.Join(instanceDir, "control-socket"))
+func setUpExternalUnixSocket(ctx context.Context, instanceDir string, startURL *url.URL) (cleanup func() error, err error) {
+	addr, err := resolveExternalUnixSocketAddr(instanceDir)
 	if err != nil {
 		return nil, uerror.WithStackTrace(err)
 	}
@@ -412,57 +411,11 @@ func setUpExternalUnixSocket(ctx context.Context, instanceDir string) (cleanup f
 		return nil, uerror.WithStackTrace(err)
 	}
 
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				break
-			default:
-			}
-
-			conn, err := listener.AcceptUnix()
-			if err != nil {
-				if errors.Is(err, net.ErrClosed) {
-					break
-				}
-				fmt.Fprintln(os.Stderr, err)
-				continue
-			}
-			go func() {
-				defer conn.Close()
-				if err := handleConnection(conn); err != nil {
-					fmt.Fprintln(os.Stderr, err)
-				}
-			}()
-		}
-	}()
+	go ListenOnExternalUnixSocket(ctx, listener, startURL)
 
 	return func() error {
 		return listener.Close()
 	}, nil
-}
-
-func handleConnection(conn *net.UnixConn) error {
-	sc := bufio.NewScanner(conn)
-	for sc.Scan() {
-		var msg interface{}
-		if err := json.Unmarshal(sc.Bytes(), &msg); err != nil {
-			return uerror.WithStackTrace(err)
-		}
-		fmt.Fprintln(os.Stderr, msg)
-
-		resp, err := json.Marshal("Hello from tbml! :>")
-		if err != nil {
-			return uerror.WithStackTrace(err)
-		}
-		if _, err := conn.Write(resp); err != nil {
-			return uerror.WithStackTrace(err)
-		}
-		if _, err := conn.Write([]byte("\n")); err != nil {
-			return uerror.WithStackTrace(err)
-		}
-	}
-	return nil
 }
 
 func setUpBindMounts(instanceDir string) (cleanup func(), err error) {

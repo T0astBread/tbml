@@ -112,13 +112,13 @@ func GetTopics(instances []ProfileInstance) []string {
 	return topics
 }
 
-func IsNewTopic(instances []ProfileInstance, topic string) bool {
+func FindInstanceByTopic(instances []ProfileInstance, topic string) *ProfileInstance {
 	for _, instance := range instances {
 		if instance.UsageLabel != nil && topic == *instance.UsageLabel {
-			return false
+			return &instance
 		}
 	}
-	return true
+	return nil
 }
 
 func GetBestInstance(profile ProfileConfiguration, instances []ProfileInstance) ProfileInstance {

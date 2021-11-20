@@ -256,11 +256,11 @@ func TestGetTopics(t *testing.T) {
 	assert.Equal(t, []string{"test-usage"}, actual)
 }
 
-func TestIsNewTopic(t *testing.T) {
+func TestFindInstanceByTopic(t *testing.T) {
 	instances := getProfileInstancesFixture()
 
-	assert.True(t, internal.IsNewTopic(instances, "unused-topic-label"))
-	assert.False(t, internal.IsNewTopic(instances, "test-usage"))
+	assert.Nil(t, internal.FindInstanceByTopic(instances, "unused-topic-label"))
+	assert.Equal(t, instances[1], *internal.FindInstanceByTopic(instances, "test-usage"))
 }
 
 func TestGetBestInstance(t *testing.T) {
